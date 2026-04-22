@@ -27,6 +27,7 @@ O script foi desenvolvido para ambientes Linux (testado nativamente em Pop!_OS /
 ```bash
 git clone [https://github.com/SEU-UTILIZADOR/isp-benchmark-suite.git](https://github.com/SEU-UTILIZADOR/isp-benchmark-suite.git)
 cd isp-benchmark-suite
+```
 
 2.  Dê permissão de execução ao script:
 
