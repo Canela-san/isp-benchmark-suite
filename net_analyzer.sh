@@ -5,13 +5,32 @@
 # ==============================================================================
 
 # Sistema de Segurança: Se o usuário der Ctrl+C, limpa o lixo temporário
-trap "echo -e '\n🛑 Teste interrompido! Limpando arquivos temporários...'; rm -f tmp_*; exit" INT TERM EXIT
+trap "echo -e '\n🛑 Teste interrompido! Limpando arquivos temporários...'; rm -f tmp_*; rm -f './relatórios/tmp_*'; rm -f ./datasets/tmp_*; exit" INT TERM EXIT
 
 OPERADORA=${1:-"Operadora_Desconhecida"}
 DURACAO_MINUTOS=${2:-30}
 DURACAO_PACOTES=$(( DURACAO_MINUTOS * 60 )) 
 TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
 DATA_LEGIVEL=$(date +"%d/%m/%Y às %H:%M:%S")
+
+# ==============================================================================
+# 🕵️ COLETA DE INFORMAÇÕES DA PLACA DE REDE (LINK SPEED)
+# ==============================================================================
+# Descobre qual é a placa de rede que está dando acesso à internet agora
+INTERFACE=$(ip route | grep default | awk '{print $5}' | head -n 1)
+# Pergunta ao kernel a velocidade negociada (em Mbps)
+LINK_SPEED=$(cat /sys/class/net/$INTERFACE/speed 2>/dev/null)
+
+if [ "$LINK_SPEED" == "1000" ]; then
+    LINK_STR="Gigabit (1000 Mbps)"
+elif [ "$LINK_SPEED" == "100" ]; then
+    LINK_STR="Fast Ethernet (100 Mbps) ⚠️ Gargalo Físico Detectado"
+elif [ "$LINK_SPEED" == "10000" ]; then
+    LINK_STR="10 Gigabit (10000 Mbps) 🚀"
+else
+    LINK_STR="${LINK_SPEED:-Desconhecida} Mbps (Wi-Fi ou Virtual)"
+    LINK_SPEED=${LINK_SPEED:-0} # Fallback numérico seguro para o JSON
+fi
 
 # Arquivos "Master" que acumulam dados
 ARQ_MD="./relatórios/MasterLog_${OPERADORA}.md"
@@ -70,6 +89,8 @@ cat <<EOF >> "$ARQ_MD"
 ---
 ## 📅 Execução: $DATA_LEGIVEL
 - **Amostragem:** $DURACAO_PACOTES pacotes por endpoint.
+- **Interface Ativa:** $INTERFACE
+- **Link Físico Negociado:** $LINK_STR
 
 EOF
 
@@ -186,8 +207,10 @@ PACOTE_JSON=$(jq -n \
   --arg ts "$TIMESTAMP" \
   --arg isp "$OPERADORA" \
   --arg samples "$DURACAO_PACOTES" \
+  --arg iface "$INTERFACE" \
+  --arg link "$LINK_SPEED" \
   --slurpfile st "tmp_speedtest.json" \
-  '{timestamp: $ts, isp: $isp, samples: ($samples|tonumber), speedtest: $st[0], ping_data: {}, mtr_data: {}}')
+  '{timestamp: $ts, isp: $isp, samples: ($samples|tonumber), interface: $iface, link_speed_mbps: ($link|tonumber), speedtest: $st[0], ping_data: {}, mtr_data: {}}')
 
 # Injeta a extração avançada de Ping no Dataset
 for alvo in "${!ALVOS_PING[@]}"; do
