@@ -179,7 +179,7 @@ done
 
 echo "### 🗺️ Raio-X de Rota (MTR)" >> "$ARQ_MD"
 for alvo in "${!ALVOS_MTR[@]}"; do
-    echo "Rota para $alvo" >> "$ARQ_MD"
+    echo "**Rota para $alvo**" >> "$ARQ_MD"
     echo "" >> "$ARQ_MD"
     
     # 3. Proteção dupla: Verifica se o arquivo tem dados antes de tentar parsear
@@ -195,7 +195,6 @@ for alvo in "${!ALVOS_MTR[@]}"; do
         echo '{"report": {"hubs": []}}' > "tmp_json_${alvo}.json" # Cria um JSON vazio válido para não quebrar a compilação do Dataset
     fi
     
-    echo "" >> "$ARQ_MD"
     echo "" >> "$ARQ_MD"
 done
 
