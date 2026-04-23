@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==============================================================================
-# Net Analyzer v3.1 - Time Series, Speedtest & Master Logging
+# Net Analyzer v4.0 - Alta Eficiência, JSON Parsing e Séries Temporais
 # ==============================================================================
 
 # Sistema de Segurança: Se o usuário der Ctrl+C, limpa o lixo temporário
@@ -13,35 +13,30 @@ DURACAO_PACOTES=$(( DURACAO_MINUTOS * 60 ))
 TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
 DATA_LEGIVEL=$(date +"%d/%m/%Y às %H:%M:%S")
 
-# Arquivos "Master" que acumulam dados (Time Series)
-ARQ_MD="MasterLog_${OPERADORA}.md"
-ARQ_JSONL="Dataset_${OPERADORA}.jsonl"
+# Arquivos "Master" que acumulam dados
+ARQ_MD="./relatórios/MasterLog_${OPERADORA}.md"
+ARQ_JSONL="./datasets/Dataset_${OPERADORA}.jsonl"
 
 # ==============================================================================
 # 🎯 DADOS DO EXPERIMENTO
 # ==============================================================================
 declare -A ALVOS_PING=(
-    # --- DNS e Infraestrutura Pública ---
     ["Google_DNS"]="8.8.8.8"
     ["Cloudflare"]="1.1.1.1"
     ["Quad9_Sec"]="9.9.9.9"
-    ["NIC_BR_SP"]="200.160.2.3" # Coração do IX.br (Ponto de Troca de Tráfego em SP)
-    
-    # --- Servidores de Jogos (São Paulo) ---
-    ["Riot_Games_BR"]="104.160.152.3" # Ponto de teste oficial do Valorant/LoL no Brasil
-    ["Valve_CS2_BR"]="gru.valve.net"  # Backbone da Valve em Guarulhos
-    
-    # --- Rotas Cloud e Internacionais ---
-    ["AWS_SaoPaulo"]="dynamodb.sa-east-1.amazonaws.com" # Tráfego corporativo local
-    ["AWS_Virginia_EUA"]="dynamodb.us-east-1.amazonaws.com" # Rota de cabo submarino
+    ["NIC_BR_SP"]="200.160.2.3"
+    ["Riot_Games_BR"]="104.160.152.3"
+    ["Valve_CS2_BR"]="103.10.104.1"
+    ["AWS_SaoPaulo"]="dynamodb.sa-east-1.amazonaws.com"
+    ["AWS_Virginia_EUA"]="dynamodb.us-east-1.amazonaws.com"
 )
 
 declare -A ALVOS_MTR=(
     ["Google_DNS"]="8.8.8.8"
     ["Cloudflare"]="1.1.1.1"
     ["NIC_BR_SP"]="200.160.2.3"
-    ["Riot_Games_BR"]="104.160.152.3" # Crucial ver o MTR de jogos para detectar perda de pacotes
-    ["AWS_Virginia_EUA"]="dynamodb.us-east-1.amazonaws.com" # Mostra em qual salto o pacote sai do Brasil
+    ["Riot_Games_BR"]="104.160.152.3"
+    ["AWS_Virginia_EUA"]="dynamodb.us-east-1.amazonaws.com"
 )
 
 # ==============================================================================
@@ -65,13 +60,11 @@ echo "🚀 Iniciando Coleta de Dados para: $OPERADORA"
 echo "⏱️  Amostragem: $DURACAO_MINUTOS min | Append automático ativo."
 echo "---------------------------------------------------"
 
-# Inicializa o Markdown apenas se não existir
 if [ ! -f "$ARQ_MD" ]; then
     echo "# 📘 Log Contínuo de Estabilidade: $OPERADORA" > "$ARQ_MD"
     echo "Documento gerado automaticamente pelo ISP Benchmark Suite." >> "$ARQ_MD"
 fi
 
-# Adiciona o cabeçalho desta execução específica
 cat <<EOF >> "$ARQ_MD"
 
 ---
@@ -85,9 +78,7 @@ EOF
 # ==============================================================================
 echo "⏳ Executando Teste de Velocidade (Pode levar 1-2 minutos)..."
 
-# Roda o speedtest gerando um JSON puro para podermos extrair os dados
 if speedtest-cli --json > tmp_speedtest.json 2>/dev/null; then
-    # Usa o jq e awk para extrair e converter bits/s para Megabits/s (Mbps)
     DL_MBPS=$(jq -r '.download / 1000000' tmp_speedtest.json | awk '{printf "%.2f", $1}')
     UL_MBPS=$(jq -r '.upload / 1000000' tmp_speedtest.json | awk '{printf "%.2f", $1}')
     PING_ST=$(jq -r '.ping' tmp_speedtest.json)
@@ -99,13 +90,12 @@ if speedtest-cli --json > tmp_speedtest.json 2>/dev/null; then
     echo "" >> "$ARQ_MD"
     echo "✅ Velocidade registrada com sucesso!"
 else
-    # Se falhar (ex: servidor speedtest fora do ar), cria um json vazio para não quebrar o pipeline
     echo "{}" > tmp_speedtest.json
     echo "⚠️ Falha ao executar o Speedtest. Pulando métrica de banda."
 fi
 
 # ==============================================================================
-# 🔀 EXECUÇÃO EM PARALELO (PING E MTR)
+# 🔀 EXECUÇÃO EM PARALELO OTIMIZADA
 # ==============================================================================
 echo "⏳ Iniciando Coleta de Latência e Rota..."
 PIDS=()
@@ -115,9 +105,8 @@ for alvo in "${!ALVOS_PING[@]}"; do
     PIDS+=($!)
 done
 
+# Agora o MTR roda APENAS UMA VEZ no modo JSON (-j)
 for alvo in "${!ALVOS_MTR[@]}"; do
-    mtr -r -c $DURACAO_PACOTES "${ALVOS_MTR[$alvo]}" > "tmp_mtr_${alvo}.txt" &
-    PIDS+=($!)
     mtr -j -c $DURACAO_PACOTES "${ALVOS_MTR[$alvo]}" > "tmp_json_${alvo}.json" &
     PIDS+=($!)
 done
@@ -136,53 +125,84 @@ for (( i=1; i<=DURACAO_PACOTES; i++ )); do
     sleep 1
 done
 
-printf "\n⏳ Acumulando dados nos arquivos Master...\n"
+printf "\n⏳ Sincronizando Datasets e gerando relatórios...\n"
 wait "${PIDS[@]}"
 
 # ==============================================================================
-# 📝 ATUALIZAÇÃO DO MARKDOWN (MASTER LOG)
+# 📝 EXTRAÇÃO DE DADOS E GERAÇÃO DE MARKDOWN/JSON
 # ==============================================================================
 echo "### 🌐 Latência Direta" >> "$ARQ_MD"
+
 for alvo in "${!ALVOS_PING[@]}"; do
     echo "**$alvo (${ALVOS_PING[$alvo]}):**" >> "$ARQ_MD"
     echo "\`\`\`text" >> "$ARQ_MD"
     tail -n 2 "tmp_ping_${alvo}.txt" >> "$ARQ_MD"
     echo "\`\`\`" >> "$ARQ_MD"
+    
+    # 2. Extrai matematicamente os dados. Proteção contra falha total de DNS/Ping
+    LOSS=$(grep "packet loss" "tmp_ping_${alvo}.txt" | awk -F'packet loss' '{print $1}' | awk -F',' '{print $NF}' | tr -d ' %')
+    if [ -z "$LOSS" ]; then LOSS=100; fi # Se a variável voltar vazia, marca 100% de perda
+
+    STATS=$(grep "min/avg/max" "tmp_ping_${alvo}.txt" | awk -F'=' '{print $2}' | tr -d ' ms')
+    
+    if [ -n "$STATS" ]; then
+        MIN=$(echo $STATS | cut -d'/' -f1); AVG=$(echo $STATS | cut -d'/' -f2)
+        MAX=$(echo $STATS | cut -d'/' -f3); MDEV=$(echo $STATS | cut -d'/' -f4)
+    else
+        MIN=0; AVG=0; MAX=0; MDEV=0 # Fallback se os dados falharem
+    fi
+
+    jq -n --arg loss "$LOSS" --arg min "$MIN" --arg avg "$AVG" --arg max "$MAX" --arg mdev "$MDEV" \
+      '{loss_percent: ($loss|tonumber), min: ($min|tonumber), avg: ($avg|tonumber), max: ($max|tonumber), mdev: ($mdev|tonumber)}' > "tmp_ping_json_${alvo}.json"
 done
 
 echo "### 🗺️ Raio-X de Rota (MTR)" >> "$ARQ_MD"
 for alvo in "${!ALVOS_MTR[@]}"; do
-    echo "**Ver rota para $alvo**" >> "$ARQ_MD"
+    echo "Rota para $alvo" >> "$ARQ_MD"
     echo "" >> "$ARQ_MD"
-    echo "\`\`\`text" >> "$ARQ_MD"
-    cat "tmp_mtr_${alvo}.txt" >> "$ARQ_MD"
-    echo "\`\`\`" >> "$ARQ_MD"
-    echo "" >> "$ARQ_MD"
+    
+    # 3. Proteção dupla: Verifica se o arquivo tem dados antes de tentar parsear
+    if [ -s "tmp_json_${alvo}.json" ]; then
+        # Sintaxe limpa com array no jq para evitar problemas de aspas e lidar com o % do Loss
+        jq -r '
+          ["| Hop | Host | Loss% | Snt | Last | Avg | Best | Wrst | StDev |", "|---|---|---|---|---|---|---|---|---|"] +
+          (.report.hubs | map([.count, (.host // "???"), ."Loss%", .Snt, .Last, .Avg, .Best, .Wrst, .StDev] | join(" | ")) | map("| " + . + " |"))
+          | .[]
+        ' "tmp_json_${alvo}.json" >> "$ARQ_MD"
+    else
+        echo "⚠️ *Falha ao rastrear a rota. O destino não respondeu ou não foi encontrado (Offline/DNS failure).* " >> "$ARQ_MD"
+        echo '{"report": {"hubs": []}}' > "tmp_json_${alvo}.json" # Cria um JSON vazio válido para não quebrar a compilação do Dataset
+    fi
+    
     echo "" >> "$ARQ_MD"
     echo "" >> "$ARQ_MD"
 done
 
 # ==============================================================================
-# 🧬 ATUALIZAÇÃO DO DATASET (JSONL)
+# 🧬 COMPILAÇÃO DO DATASET FINAL (JSONL)
 # ==============================================================================
-# Cria a base do JSON desta execução (incluindo o Speedtest)
+# Inicializa o bloco com os dados gerais
 PACOTE_JSON=$(jq -n \
   --arg ts "$TIMESTAMP" \
   --arg isp "$OPERADORA" \
   --arg samples "$DURACAO_PACOTES" \
   --slurpfile st "tmp_speedtest.json" \
-  '{timestamp: $ts, isp: $isp, samples: $samples, speedtest: $st[0], mtr_data: {}}')
+  '{timestamp: $ts, isp: $isp, samples: ($samples|tonumber), speedtest: $st[0], ping_data: {}, mtr_data: {}}')
 
-# Injeta os resultados do MTR dentro do JSON
+# Injeta a extração avançada de Ping no Dataset
+for alvo in "${!ALVOS_PING[@]}"; do
+    PACOTE_JSON=$(echo "$PACOTE_JSON" | jq --arg alvo "$alvo" --slurpfile ping "tmp_ping_json_${alvo}.json" '.ping_data[$alvo] = $ping[0]')
+done
+
+# Injeta os resultados crus do MTR no Dataset
 for alvo in "${!ALVOS_MTR[@]}"; do
     PACOTE_JSON=$(echo "$PACOTE_JSON" | jq --arg alvo "$alvo" --slurpfile mtr "tmp_json_${alvo}.json" '.mtr_data[$alvo] = $mtr[0]')
 done
 
-# Minifica tudo em UMA ÚNICA LINHA e adiciona ao Dataset Master
+# Grava a linha única e minificada no Dataset
 echo "$PACOTE_JSON" | jq -c . >> "$ARQ_JSONL"
 
-# O comando Trap cuidará da exclusão dos arquivos tmp_*. Não precisamos do rm manual aqui.
-# Removemos apenas o handler do Trap para sair limpo no final.
+# Limpeza e Sucesso
 trap - INT TERM EXIT
 rm -f tmp_*
 
