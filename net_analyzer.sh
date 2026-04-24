@@ -1,10 +1,6 @@
 #!/bin/bash
 
-# ==============================================================================
-# Net Analyzer v4.0 - Alta Eficiência, JSON Parsing e Séries Temporais
-# ==============================================================================
-
-# Sistema de Segurança: Se o usuário der Ctrl+C, limpa o lixo temporário
+cd "$(dirname "$0")" || exit
 trap "echo -e '\n🛑 Teste interrompido! Limpando arquivos temporários...'; rm -f tmp_*; rm -f './relatórios/tmp_*'; rm -f ./datasets/tmp_*; exit" INT TERM EXIT
 
 OPERADORA=${1:-"Operadora_Desconhecida"}
@@ -13,12 +9,7 @@ DURACAO_PACOTES=$(( DURACAO_MINUTOS * 60 ))
 TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
 DATA_LEGIVEL=$(date +"%d/%m/%Y às %H:%M:%S")
 
-# ==============================================================================
-# 🕵️ COLETA DE INFORMAÇÕES DA PLACA DE REDE (LINK SPEED)
-# ==============================================================================
-# Descobre qual é a placa de rede que está dando acesso à internet agora
 INTERFACE=$(ip route | grep default | awk '{print $5}' | head -n 1)
-# Pergunta ao kernel a velocidade negociada (em Mbps)
 LINK_SPEED=$(cat /sys/class/net/$INTERFACE/speed 2>/dev/null)
 
 if [ "$LINK_SPEED" == "1000" ]; then
@@ -29,16 +20,12 @@ elif [ "$LINK_SPEED" == "10000" ]; then
     LINK_STR="10 Gigabit (10000 Mbps) 🚀"
 else
     LINK_STR="${LINK_SPEED:-Desconhecida} Mbps (Wi-Fi ou Virtual)"
-    LINK_SPEED=${LINK_SPEED:-0} # Fallback numérico seguro para o JSON
+    LINK_SPEED=${LINK_SPEED:-0}
 fi
 
-# Arquivos "Master" que acumulam dados
 ARQ_MD="./relatórios/MasterLog_${OPERADORA}.md"
 ARQ_JSONL="./datasets/Dataset_${OPERADORA}.jsonl"
 
-# ==============================================================================
-# 🎯 DADOS DO EXPERIMENTO
-# ==============================================================================
 declare -A ALVOS_PING=(
     ["Google_DNS"]="8.8.8.8"
     ["Cloudflare"]="1.1.1.1"
@@ -58,9 +45,6 @@ declare -A ALVOS_MTR=(
     ["AWS_Virginia_EUA"]="dynamodb.us-east-1.amazonaws.com"
 )
 
-# ==============================================================================
-# 🛠️ DEPENDÊNCIAS
-# ==============================================================================
 DEPENDENCIAS=("ping" "mtr" "speedtest-cli" "jq")
 PACOTES_FALTANDO=()
 
@@ -93,10 +77,6 @@ cat <<EOF >> "$ARQ_MD"
 - **Link Físico Negociado:** $LINK_STR
 
 EOF
-
-# ==============================================================================
-# 🚀 TESTE DE VELOCIDADE (SPEEDTEST)
-# ==============================================================================
 echo "⏳ Executando Teste de Velocidade (Pode levar 1-2 minutos)..."
 
 if speedtest-cli --json > tmp_speedtest.json 2>/dev/null; then
@@ -115,9 +95,6 @@ else
     echo "⚠️ Falha ao executar o Speedtest. Pulando métrica de banda."
 fi
 
-# ==============================================================================
-# 🔀 EXECUÇÃO EM PARALELO OTIMIZADA
-# ==============================================================================
 echo "⏳ Iniciando Coleta de Latência e Rota..."
 PIDS=()
 
@@ -126,13 +103,11 @@ for alvo in "${!ALVOS_PING[@]}"; do
     PIDS+=($!)
 done
 
-# Agora o MTR roda APENAS UMA VEZ no modo JSON (-j)
 for alvo in "${!ALVOS_MTR[@]}"; do
     mtr -j -c $DURACAO_PACOTES "${ALVOS_MTR[$alvo]}" > "tmp_json_${alvo}.json" &
     PIDS+=($!)
 done
 
-# Loop de Progresso
 for (( i=1; i<=DURACAO_PACOTES; i++ )); do
     PROCESSOS_VIVOS=0
     for pid in "${PIDS[@]}"; do
@@ -149,9 +124,6 @@ done
 printf "\n⏳ Sincronizando Datasets e gerando relatórios...\n"
 wait "${PIDS[@]}"
 
-# ==============================================================================
-# 📝 EXTRAÇÃO DE DADOS E GERAÇÃO DE MARKDOWN/JSON
-# ==============================================================================
 echo "### 🌐 Latência Direta" >> "$ARQ_MD"
 
 for alvo in "${!ALVOS_PING[@]}"; do
@@ -160,7 +132,6 @@ for alvo in "${!ALVOS_PING[@]}"; do
     tail -n 2 "tmp_ping_${alvo}.txt" >> "$ARQ_MD"
     echo "\`\`\`" >> "$ARQ_MD"
     
-    # 2. Extrai matematicamente os dados. Proteção contra falha total de DNS/Ping
     LOSS=$(grep "packet loss" "tmp_ping_${alvo}.txt" | awk -F'packet loss' '{print $1}' | awk -F',' '{print $NF}' | tr -d ' %')
     if [ -z "$LOSS" ]; then LOSS=100; fi # Se a variável voltar vazia, marca 100% de perda
 
@@ -182,9 +153,7 @@ for alvo in "${!ALVOS_MTR[@]}"; do
     echo "**Rota para $alvo**" >> "$ARQ_MD"
     echo "" >> "$ARQ_MD"
     
-    # 3. Proteção dupla: Verifica se o arquivo tem dados antes de tentar parsear
     if [ -s "tmp_json_${alvo}.json" ]; then
-        # Sintaxe limpa com array no jq para evitar problemas de aspas e lidar com o % do Loss
         jq -r '
           ["| Hop | Host | Loss% | Snt | Last | Avg | Best | Wrst | StDev |", "|---|---|---|---|---|---|---|---|---|"] +
           (.report.hubs | map([.count, (.host // "???"), ."Loss%", .Snt, .Last, .Avg, .Best, .Wrst, .StDev] | join(" | ")) | map("| " + . + " |"))
@@ -198,10 +167,6 @@ for alvo in "${!ALVOS_MTR[@]}"; do
     echo "" >> "$ARQ_MD"
 done
 
-# ==============================================================================
-# 🧬 COMPILAÇÃO DO DATASET FINAL (JSONL)
-# ==============================================================================
-# Inicializa o bloco com os dados gerais
 PACOTE_JSON=$(jq -n \
   --arg ts "$TIMESTAMP" \
   --arg isp "$OPERADORA" \
@@ -211,20 +176,16 @@ PACOTE_JSON=$(jq -n \
   --slurpfile st "tmp_speedtest.json" \
   '{timestamp: $ts, isp: $isp, samples: ($samples|tonumber), interface: $iface, link_speed_mbps: ($link|tonumber), speedtest: $st[0], ping_data: {}, mtr_data: {}}')
 
-# Injeta a extração avançada de Ping no Dataset
 for alvo in "${!ALVOS_PING[@]}"; do
     PACOTE_JSON=$(echo "$PACOTE_JSON" | jq --arg alvo "$alvo" --slurpfile ping "tmp_ping_json_${alvo}.json" '.ping_data[$alvo] = $ping[0]')
 done
 
-# Injeta os resultados crus do MTR no Dataset
 for alvo in "${!ALVOS_MTR[@]}"; do
     PACOTE_JSON=$(echo "$PACOTE_JSON" | jq --arg alvo "$alvo" --slurpfile mtr "tmp_json_${alvo}.json" '.mtr_data[$alvo] = $mtr[0]')
 done
 
-# Grava a linha única e minificada no Dataset
 echo "$PACOTE_JSON" | jq -c . >> "$ARQ_JSONL"
 
-# Limpeza e Sucesso
 trap - INT TERM EXIT
 rm -f tmp_*
 
