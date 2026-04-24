@@ -1,102 +1,101 @@
-# 🌐 ISP Benchmark Suite
+# ISP Benchmark Suite
 
-> Uma suite automatizada em Bash para análise profunda de redes domésticas. Testa, submete a stress, documenta e estrutura métricas de latência, jitter e perda de pacotes em rotas de provedores de internet (ISPs), focando em abordagens de **Ciência de Dados** e **Séries Temporais**.
+O **ISP Benchmark Suite** é um conjunto de ferramentas automatizadas para análise profunda, auditoria e monitorização de redes domésticas e empresariais. Desenvolvido para engenheiros de rede, cientistas de dados e *power users*, o projeto submete rotas de provedores de internet (ISPs) a testes de stress e documenta métricas de latência, jitter, perda de pacotes e largura de banda através de uma abordagem de **Séries Temporais (Time Series)**.
 
-Este script foi criado para ajudar *power users*, gamers, cientistas de dados e engenheiros de rede a auditarem a qualidade da conexão entregue pelos seus provedores de internet ao longo do tempo. 
+## Arquitetura e Funcionalidades
 
-## ✨ Funcionalidades
+O projeto é composto por dois módulos principais: coleta de dados em Bash e análise visual em Python.
 
-- **Log Contínuo (Time Series):** Em vez de criar dezenas de ficheiros soltos, o script acumula os resultados num `MasterLog` em Markdown, criando um histórico perfeito para auditoria.
-- **Exportação para Data Science (JSONL):** Além do Markdown para leitura humana, o script gera automaticamente um dataset no padrão `.jsonl` (JSON Lines), pronto para ser consumido por bibliotecas como Pandas em Python para análise gráfica avançada.
-- **Novos Alvos Estratégicos:** Testa a rede não apenas contra DNS, mas analisa as rotas reais que importam:
-  - *Infraestrutura Nacional:* NIC.br (IX.br - Coração da internet no Brasil).
-  - *Servidores de Jogos:* Riot Games (Valorant/LoL) e Valve (CS2) em São Paulo.
-  - *Rotas Cloud e Internacionais:* AWS São Paulo (Tráfego Local) e AWS Virgínia (Testa a qualidade dos cabos submarinos internacionais).
-- **Execução em Paralelo:** Roda múltiplos testes de latência e rotas simultaneamente sem criar gargalos locais.
-- **Limpeza Segura (Trap):** Interrompeu o teste a meio com `Ctrl+C`? Não há problema. O sistema limpa automaticamente todos os ficheiros temporários para não sujar o seu repositório.
-- **Instalação Automática de Dependências:** O script deteta e instala o que falta (`mtr`, `speedtest-cli`, `jq`) de forma inteligente.
-- **Teste de Banda Opcional:** Coleta dados de Download e Upload antes de iniciar os testes de stress de rota.
+* **Coleta Contínua (Time Series):** Os resultados são acumulados em ficheiros `.jsonl` estruturados e em logs `Markdown`, permitindo a auditoria de longo prazo sem proliferação de ficheiros.
+* **Deteção de Gargalos Físicos:** O script deteta automaticamente a interface de rede em uso e a velocidade física negociada (ex: identificando quedas indesejadas de Gigabit para Fast Ethernet 100 Mbps).
+* **Alvos de Teste Estratégicos:** Monitorização de rotas de infraestrutura nacional (NIC.br), servidores de jogos (Riot Games, Valve) e rotas em nuvem/internacionais (AWS São Paulo e Virgínia).
+* **Análise de Dados Integrada:** Módulo de geração de gráficos utilizando Python (`pandas`, `seaborn`, `matplotlib`) gerido via `uv`, eliminando a necessidade de configuração manual de ambientes virtuais.
+* **Execução Segura em Paralelo:** Executa testes `ping` e `mtr` em simultâneo de forma otimizada. Caso a execução seja interrompida (SIGINT/SIGTERM), um sistema de *trap* garante a limpeza de ficheiros temporários.
 
-## 🛠️ Pré-requisitos
+## Estrutura de Diretórios
 
-O script foi desenvolvido para ambientes Linux (testado nativamente em Pop!_OS / Ubuntu) e utiliza ferramentas padrão de rede.
+O projeto organiza os dados de saída em diretórios específicos para manter o repositório limpo:
+* `/datasets/`: Armazena os ficheiros de dados brutos `.jsonl` para consumo do Python.
+* `/relatórios/`: Armazena os ficheiros legíveis `.md` (MasterLogs).
 
-**Não precisa de instalar dependências manualmente!** Ao executar o script, este fará uma verificação automática. Se ferramentas necessárias como `ping`, `mtr`, `speedtest-cli` ou `jq` não estiverem presentes, o próprio script pedirá a sua autorização para instalá-las.
+---
 
-*Nota: Para extrair o máximo do plano de internet contratado durante o teste de largura de banda, recomenda-se que a máquina física esteja ligada via cabo de rede Cat5e, Cat6, Cat6A ou superior.*
+## Pré-requisitos e Instalação
 
-## 🚀 Instalação e Utilização
+O script de coleta foi desenvolvido para sistemas baseados em Linux (Debian, Ubuntu, Pop!_OS) e instala automaticamente dependências de rede em falta (`mtr`, `speedtest-cli`, `jq`).
 
-1. Clone o repositório para a sua máquina:
+Para o módulo de análise gráfica, o projeto utiliza o **`uv`** como gestor de pacotes Python.
+
+### 1. Clonar o Repositório
 ```bash
 git clone [https://github.com/SEU-UTILIZADOR/isp-benchmark-suite.git](https://github.com/SEU-UTILIZADOR/isp-benchmark-suite.git)
 cd isp-benchmark-suite
-```
-
-2.  Dê permissão de execução ao script:
-
-<!-- end list -->
-
-```bash
 chmod +x net_analyzer.sh
 ```
 
-3.  Execute o script indicando o nome da sua operadora (obrigatório) e o tempo em minutos (opcional - o padrão são 30 minutos):
+### 2. Instalar o `uv` (Para Análise Gráfica)
+Caso ainda não possua o `uv` instalado no seu sistema:
+```bash
+curl -LsSf [https://astral.sh/uv/install.sh](https://astral.sh/uv/install.sh) | sh
+```
 
-<!-- end list -->
+---
+
+## Guia de Utilização
+
+### Módulo 1: Coleta de Dados (`net_analyzer.sh`)
+
+Execute o script fornecendo o nome da provedora (ISP) e a duração do teste em minutos.
 
 ```bash
-# Executa um teste com a duração padrão de 30 minutos
-./net_analyzer.sh NomeDaSuaOperadora
-
-# Executa um teste rápido de 10 minutos
-./net_analyzer.sh NomeDaSuaOperadora 10
+# Executa um teste de stress de 20 minutos (Recomendado)
+./net_analyzer.sh "NomeDaOperadora" 20
 ```
 
-Enquanto os testes decorrem em segundo plano, o terminal exibirá o seu progresso:
-`🔄 Coletando Amostras:  45% | Restante: 16:30`
+Durante a execução, o terminal exibirá uma barra de progresso. Ao finalizar, os resultados serão anexados aos ficheiros `MasterLog_*.md` e `Dataset_*.jsonl` nas suas respetivas pastas.
 
-Quando finalizado, o script atualizará (ou criará) dois ficheiros na sua pasta:
+#### Automação via Crontab (Amostragem Distribuída)
+Para uma análise de alta fidelidade sem intervenção manual, recomenda-se programar a execução do script em diferentes momentos do dia. O script foi desenhado para resolver o seu próprio diretório base, sendo 100% compatível com o `cron`.
 
-1.  `MasterLog_NomeDaSuaOperadora.md` (Para leitura e publicações)
-2.  `Dataset_NomeDaSuaOperadora.jsonl` (Para scripts em Python / Data Science)
+Adicione as seguintes linhas ao seu `crontab -e` para executar sprints de 20 minutos em horários estratégicos:
 
-## 🧠 Por que Testar Estes IP's Específicos?
-
-Muitas operadoras configuram rotas "expressas" para servidores DNS famosos (como o Google), mas entregam um serviço com má qualidade para outras conexões. O nosso conjunto de IPs resolve isso:
-
-  - **Jogos (Riot/Valve):** Prova se a operadora possui *peering* direto com os servidores de jogos em SP, evidenciando o culpado por picos de "lag" e desconexões.
-  - **AWS Virgínia:** Ao analisar o rastreio de rota (`mtr`) até os EUA, é possível determinar a qualidade do cabo submarino utilizado pelo ISP (ex: latências de 110ms vs 150ms).
-
-## 📄 Exemplo de Saídas
-
-**No ficheiro `MasterLog_Operadora.md`:**
-
-```markdown
-## 📅 Execução: 22/04/2026 às 19:30:00
-- **Amostragem:** 1800 pacotes por endpoint.
-
-### 🚀 Velocidade de Conexão
-- **Download:** 712.34 Mbps
-- **Upload:** 350.12 Mbps
-- **Ping (Servidor Local):** 4 ms
-
-### 🌐 Latência Direta
-**Riot_Games_BR (104.160.152.3):**
-500 packets transmitted, 500 received, 0% packet loss, time 499952ms
-rtt min/avg/max/mdev = 9.401/9.781/15.975/0.492 ms
+```cron
+# Amostragem Distribuída ISP Benchmark Suite
+0 2  * * * /caminho/absoluto/para/isp-benchmark-suite/net_analyzer.sh "NomeDaOperadora" 20
+0 8  * * * /caminho/absoluto/para/isp-benchmark-suite/net_analyzer.sh "NomeDaOperadora" 20
+0 14 * * * /caminho/absoluto/para/isp-benchmark-suite/net_analyzer.sh "NomeDaOperadora" 20
+30 19 * * * /caminho/absoluto/para/isp-benchmark-suite/net_analyzer.sh "NomeDaOperadora" 20
+0 21 * * * /caminho/absoluto/para/isp-benchmark-suite/net_analyzer.sh "NomeDaOperadora" 20
 ```
 
-**No ficheiro `Dataset_Operadora.jsonl`:**
+### Módulo 2: Análise Visual (`analise_redes.py`)
 
-```json
-{"timestamp":"2026-04-22_19-30-00","isp":"Vivo","samples":1800,"speedtest":{"download":712340000.0,"upload":350120000.0},"mtr_data":{"Google_DNS":{...},"Riot_Games_BR":{...}}}
+Após coletar dados de uma ou mais provedoras, pode gerar gráficos comparativos instantaneamente. O script utiliza a PEP 723 (Inline Script Metadata), permitindo que o `uv` resolva todas as dependências isoladamente num ambiente efémero.
+
+```bash
+uv run analise_redes.py
 ```
 
-## 🤝 Contribuir
+**Saída Esperada:**
+O script lerá todos os ficheiros `/datasets/Dataset_*.jsonl`, compilará os dados via Pandas e:
+1.  Gerará e guardará uma imagem de alta resolução (`Analise_Comparativa_Provedoras.png`).
+2.  Abrirá uma janela interativa para exploração detalhada dos gráficos de Velocidade Média, Estabilidade (Boxplot de Ping) e Desempenho por Horário.
 
-Sinta-se à vontade para abrir *Issues* a relatar bugs ou para enviar *Pull Requests* com melhorias ao código. Toda a ajuda para aprimorar o diagnóstico de redes domésticas é bem-vinda\!
+---
 
-## 📜 Licença
+## Metodologia de Teste de Alvos
 
-Este projeto está sob a licença MIT. Veja o ficheiro [LICENSE](https://www.google.com/search?q=LICENSE) para mais detalhes.
+A seleção de IPs incluída no script não é arbitrária. Ela visa diagnosticar pontos de falha comuns em arquiteturas de roteamento de ISPs:
+
+* **Google (8.8.8.8) e Cloudflare (1.1.1.1):** Utilizados como linha de base de estabilidade genérica.
+* **NIC.br (200.160.2.3):** Avalia a conectividade com o IX.br (Ponto de Troca de Tráfego), vital para o tráfego nacional.
+* **Servidores de Jogos (Riot e Valve):** Identifica a ausência de *peering* direto ou rotas congestionadas que causam "lag" em aplicações de tempo real.
+* **AWS Virgínia (us-east-1):** Mapeia a latência internacional, evidenciando a qualidade dos cabos submarinos contratados pela operadora.
+
+## Contribuição
+
+Pull Requests e reportes de bugs (Issues) são encorajados. Caso adicione novos alvos de MTR, garanta que possuem relevância técnica para o diagnóstico de infraestrutura.
+
+## Licença
+
+Este projeto é distribuído sob a licença MIT. Consulte o ficheiro `LICENSE` para mais informações.
