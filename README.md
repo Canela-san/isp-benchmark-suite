@@ -1,6 +1,6 @@
 # ISP Benchmark Suite
 
-O **ISP Benchmark Suite** é um conjunto de ferramentas automatizadas para análise profunda, auditoria e monitorização de redes domésticas e empresariais. Desenvolvido para engenheiros de rede, cientistas de dados e *power users*, o projeto submete rotas de provedores de internet (ISPs) a testes de stress e documenta métricas de latência, jitter, perda de pacotes e largura de banda através de uma abordagem de **Séries Temporais (Time Series)**.
+O **ISP Benchmark Suite** é um conjunto de ferramentas automatizadas para análise, auditoria e monitorização de redes domésticas e empresariais. Desenvolvido para engenheiros de rede, cientistas de dados e *power users*, o projeto submete rotas de provedores de internet (ISPs) a testes de stress e documenta métricas de latência, jitter, perda de pacotes e largura de banda através de uma abordagem de **Séries Temporais (Time Series)**.
 
 ## Arquitetura e Funcionalidades
 
@@ -28,7 +28,7 @@ Para o módulo de análise gráfica, o projeto utiliza o **`uv`** como gestor de
 
 ### 1. Clonar o Repositório
 ```bash
-git clone [https://github.com/SEU-UTILIZADOR/isp-benchmark-suite.git](https://github.com/SEU-UTILIZADOR/isp-benchmark-suite.git)
+git clone https://github.com/Canela-san/isp-benchmark-suite.git
 cd isp-benchmark-suite
 chmod +x net_analyzer.sh
 ```
@@ -36,7 +36,7 @@ chmod +x net_analyzer.sh
 ### 2. Instalar o `uv` (Para Análise Gráfica)
 Caso ainda não possua o `uv` instalado no seu sistema:
 ```bash
-curl -LsSf [https://astral.sh/uv/install.sh](https://astral.sh/uv/install.sh) | sh
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
 ---
